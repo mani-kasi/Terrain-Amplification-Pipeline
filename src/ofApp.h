@@ -4,6 +4,9 @@
 #include "Heightfield.h"
 #include "Erosion.h"
 #include "MeshBuild.h"
+#include "PipelineConfig.h"
+#include "ErosionAPI.h"
+#include "MultiScale.h"
 #include <cstdint>
 
 class ofApp : public ofBaseApp{
@@ -38,6 +41,14 @@ class ofApp : public ofBaseApp{
     ofLight dirLight;
 
     bool wireframeOn = false;
+    PipelineConfig cfg;
+
+    // Multi-scale pipeline state
+    Heightfield H_base;   // original/coarsest
+    Heightfield H_ms;     // multi-scale result
+    bool hasMultiScale = false;
+    enum class ViewMode { Base, MultiScale };
+    ViewMode viewMode = ViewMode::Base;
     float cellSize = 1.0f;
     TerrainWorld terrainWorld;
     bool terrainReady = false;

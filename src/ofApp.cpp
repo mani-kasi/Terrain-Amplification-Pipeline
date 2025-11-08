@@ -6,6 +6,35 @@
 #include <glm/glm.hpp>
 #include <glm/geometric.hpp>
 #include <sstream>
+#include <vector>
+#include <string>
+
+// Simple HUD panel helper: draws translucent background + vertical lines
+static void drawHudPanel(const std::vector<std::string>& lines,
+                         float x = 10.f, float y = 20.f, float lineH = 16.f,
+                         float pad = 6.f) {
+    ofPushStyle();
+    // Estimate width using monospace bitmap font (~8 px per char)
+    constexpr float kCharW = 8.0f;
+    float maxW = 0.f;
+    for (const auto& s : lines) {
+        float w = kCharW * static_cast<float>(s.size());
+        if (w > maxW) maxW = w;
+    }
+    float w = maxW + pad * 2.f;
+    float h = lineH * static_cast<float>(lines.size()) + pad * 2.f;
+
+    ofSetColor(0, 0, 0, 150);
+    ofDrawRectangle(x - pad, y - pad, w, h);
+
+    ofSetColor(255);
+    float yy = y;
+    for (const auto& s : lines) {
+        ofDrawBitmapStringHighlight(s, x, yy);
+        yy += lineH;
+    }
+    ofPopStyle();
+}
 
 namespace {
 	std::uint64_t randomTerrainSeed() {
@@ -43,14 +72,24 @@ void ofApp::setup(){
     // No custom shaders; using per-vertex colors
 
     rebuildTerrainMesh(true);
+    // keep a coarsest/base copy for multi-scale
+    H_base = terrain;
 
 	fluvialParams.k = 0.0025f;
 	fluvialParams.dt = 1.0f;
 	fluvialParams.minSlope = 0.001f;
 	fluvialParams.intensity = 10.0f;
 
-	thermalParams.talusAngle = 0.6f;
-	thermalParams.c = 0.5f;
+    thermalParams.talusAngle = 0.6f;
+    thermalParams.c = 0.5f;
+
+    // Initialize multi-scale pipeline configuration (coarse -> fine)
+    cfg.scales = {
+        { /*itF*/80, /*itT*/15, /*Kf*/0.015f, /*p*/0.5f, /*q*/1.0f,
+          /*Kt*/0.30f, /*talus*/32.0f, /*blend*/0.65f },
+        { /*itF*/40, /*itT*/ 8, /*Kf*/0.008f, /*p*/0.5f, /*q*/1.0f,
+          /*Kt*/0.20f, /*talus*/32.0f, /*blend*/0.80f }
+    };
 }
 
 //--------------------------------------------------------------
@@ -81,22 +120,26 @@ void ofApp::draw(){
 	ofDisableDepthTest();
 
 	ofSetColor(255);
-	std::ostringstream hud;
-	hud << "Controls:\n";
-    hud << "  E: Wireframe [" << (wireframeOn ? "ON" : "OFF") << "]\n";
-	hud << "  WASD: Move camera\n";
-	hud << "  F: Fluvial erosion step\n";
-	hud << "  T: Thermal erosion step\n";
-    hud << "  R: New terrain (reset)\n";
-    hud << "  U: Upsample 2x (fixed extents)\n";
-    hud << "Seed: " << terrainSeed << "\n";
-    hud << "Grid: " << terrain.width << "x" << terrain.height << "\n";
-    hud << "World: " << terrainWorld.worldWidth << " x " << terrainWorld.worldDepth << "\n";
-    hud << "Mesh vertices: " << terrainMesh.getNumVertices();
+    // Unified HUD panel
+    std::vector<std::string> hud;
+    hud.push_back("Controls:");
+    hud.push_back(std::string("E: Wireframe [") + (wireframeOn ? "ON" : "OFF") + "]");
+    hud.push_back("WASD: Move camera");
+    hud.push_back("F: Fluvial erosion step");
+    hud.push_back("T: Thermal erosion step");
+    hud.push_back("U: Upsample 2x (fixed extents)");
+    hud.push_back("M: Run multi-scale pipeline");
+    hud.push_back("B: View BASE");
+    hud.push_back("V: View MULTI-SCALE");
+    hud.push_back("");
+    hud.push_back("Seed: " + std::to_string(static_cast<unsigned long long>(terrainSeed)));
+    hud.push_back("Grid: " + std::to_string(terrain.width) + "x" + std::to_string(terrain.height));
+    hud.push_back("World: " + std::to_string(static_cast<int>(terrainWorld.worldWidth)) +
+                  " x " + std::to_string(static_cast<int>(terrainWorld.worldDepth)));
+    hud.push_back(std::string("View: ") + ((viewMode == ViewMode::Base) ? "Base" : "Multi-Scale"));
+    hud.push_back("Mesh vertices: " + std::to_string(static_cast<int>(terrainMesh.getNumVertices())));
 
-    ofDrawBitmapString(hud.str(), 10, 20);
-    // Bottom-left tiny status
-    ofDrawBitmapString("Wire: " + std::string(wireframeOn ? "ON" : "OFF"), 10, ofGetHeight() - 10);
+    drawHudPanel(hud, 10.f, 20.f, 16.f, 6.f);
 }
 
 //--------------------------------------------------------------
@@ -185,6 +228,9 @@ void ofApp::keyPressed(int key){
     } else if (key == 'r' || key == 'R') {
         wireframeOn = false;
         rebuildTerrainMesh(true);
+        H_base = terrain; // reset base
+        hasMultiScale = false;
+        viewMode = ViewMode::Base;
 	} else if ((key == 'f' || key == 'F') && terrainReady) {
 		computeDrainage(terrain);
 		applyFluvialErosion(terrain, fluvialParams);
@@ -196,6 +242,29 @@ void ofApp::keyPressed(int key){
         // Upsample the current heightfield and rebuild the mesh
         terrain = upsample2xBilinear(terrain);
         rebuildTerrainMesh(false);
+    } else if (key == 'm' || key == 'M') {
+        const std::uint64_t t0 = ofGetElapsedTimeMillis();
+        H_ms = runMultiScale(H_base, cfg, runFluvialPass, runThermalPass);
+        const std::uint64_t t1 = ofGetElapsedTimeMillis();
+        ofLogNotice() << "[ms] runtime " << (t1 - t0) << " ms, grid="
+                      << H_ms.width << "x" << H_ms.height;
+        terrain = H_ms;
+        hasMultiScale = true;
+        viewMode = ViewMode::MultiScale;
+        rebuildTerrainMesh(false);
+    } else if (key == 'b' || key == 'B') {
+        viewMode = ViewMode::Base;
+        terrain = H_base;
+        rebuildTerrainMesh(false);
+    } else if (key == 'v' || key == 'V') {
+        if (hasMultiScale) {
+            viewMode = ViewMode::MultiScale;
+            terrain = H_ms;
+            rebuildTerrainMesh(false);
+            ofLogNotice() << "[view] Multi-Scale";
+        } else {
+            ofLogWarning() << "[view] Multi-Scale not available (run M first)";
+        }
     } else if (key == 'w' || key == 'W') {
         cam.dolly(cameraMoveStep);
     } else if (key == 's' || key == 'S') {
