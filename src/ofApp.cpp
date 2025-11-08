@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <cmath>
 #include <glm/glm.hpp>
 #include <glm/geometric.hpp>
 #include <sstream>
@@ -28,13 +29,20 @@ void ofApp::setup(){
 
 	terrainReady = true;
 
-	const float maxDim = static_cast<float>(terrainResolution);
-	cellSize = 1.0f;
-	cam.setDistance(maxDim * cellSize * 1.5f);
+    // Fixed world extents independent of resolution (Y-up height)
+    terrainWorld = TerrainWorld();
+    terrainWorld.worldWidth  = 1000.0f;
+    terrainWorld.worldDepth  = 1000.0f;
+    terrainWorld.heightScale = 80.0f; // modest while testing
+    terrainWorld.center      = true;
+    const float maxDim = std::max(terrainWorld.worldWidth, terrainWorld.worldDepth);
+    cam.setDistance(maxDim * 1.5f);
 	cam.setNearClip(0.1f);
 	cam.setFarClip(10000.0f);
 
-	rebuildTerrainMesh(true);
+    // No custom shaders; using per-vertex colors
+
+    rebuildTerrainMesh(true);
 
 	fluvialParams.k = 0.0025f;
 	fluvialParams.dt = 1.0f;
@@ -56,16 +64,17 @@ void ofApp::draw(){
 	ofEnableLighting();
 	dirLight.enable();
 
-	cam.begin();
-	if (terrainReady) {
-		if (showWireframe) {
-			ofSetColor(255);
-			terrainMesh.drawWireframe();
-		} else {
-			terrainMesh.draw();
-		}
-	}
-	cam.end();
+    cam.begin();
+    if (terrainReady) {
+        ofSetColor(255);
+        if (wireframeOn) {
+            ofSetLineWidth(1.5f);
+            terrainMesh.drawWireframe();
+        } else {
+            terrainMesh.draw();
+        }
+    }
+    cam.end();
 
 	dirLight.disable();
 	ofDisableLighting();
@@ -74,15 +83,20 @@ void ofApp::draw(){
 	ofSetColor(255);
 	std::ostringstream hud;
 	hud << "Controls:\n";
-	hud << "  E: Wireframe [" << (showWireframe ? "ON" : "OFF") << "]\n";
+    hud << "  E: Wireframe [" << (wireframeOn ? "ON" : "OFF") << "]\n";
 	hud << "  WASD: Move camera\n";
 	hud << "  F: Fluvial erosion step\n";
 	hud << "  T: Thermal erosion step\n";
-	hud << "  R: New terrain (reset)\n";
-	hud << "Seed: " << terrainSeed << "\n";
-	hud << "Mesh vertices: " << terrainMesh.getNumVertices();
+    hud << "  R: New terrain (reset)\n";
+    hud << "  U: Upsample 2x (fixed extents)\n";
+    hud << "Seed: " << terrainSeed << "\n";
+    hud << "Grid: " << terrain.width << "x" << terrain.height << "\n";
+    hud << "World: " << terrainWorld.worldWidth << " x " << terrainWorld.worldDepth << "\n";
+    hud << "Mesh vertices: " << terrainMesh.getNumVertices();
 
-	ofDrawBitmapString(hud.str(), 10, 20);
+    ofDrawBitmapString(hud.str(), 10, 20);
+    // Bottom-left tiny status
+    ofDrawBitmapString("Wire: " + std::string(wireframeOn ? "ON" : "OFF"), 10, ofGetHeight() - 10);
 }
 
 //--------------------------------------------------------------
@@ -97,73 +111,30 @@ void ofApp::rebuildTerrainMesh(bool regenerateTerrain) {
 		terrain.generateTestTerrain(0.0f, 60.0f, terrainSeed);
 	}
 
-	if (terrain.width <= 0 || terrain.height <= 0) {
-		return;
-	}
+    if (terrain.width <= 0 || terrain.height <= 0) {
+        return;
+    }
 
-	terrainMesh.clear();
-	terrainMesh.setMode(OF_PRIMITIVE_TRIANGLES);
+    // Log grid/world and height range (pre-scale)
+    float minE = std::numeric_limits<float>::max();
+    float maxE = std::numeric_limits<float>::lowest();
+    for (float e : terrain.elevation) {
+        if (std::isfinite(e)) {
+            minE = std::min(minE, e);
+            maxE = std::max(maxE, e);
+        }
+    }
+    ofLogNotice() << "Grid: " << terrain.width << "x" << terrain.height
+                  << ", World: " << terrainWorld.worldWidth << "x" << terrainWorld.worldDepth
+                  << ", Height range: [" << minE << ", " << maxE << "]";
 
-	const int w = terrain.width;
-	const int h = terrain.height;
-	const float halfW = (w - 1) * 0.5f * cellSize;
-	const float halfH = (h - 1) * 0.5f * cellSize;
+    terrainMesh = buildTerrainMesh(terrain, terrainWorld);
+    terrainMesh.setMode(OF_PRIMITIVE_TRIANGLES);
+    ofLogNotice() << "[mesh] verts=" << terrainMesh.getNumVertices()
+                  << " idx=" << terrainMesh.getNumIndices()
+                  << " mode=" << terrainMesh.getMode();
 
-	for (int y = 0; y < h; ++y) {
-		for (int x = 0; x < w; ++x) {
-			const float sx = x * cellSize - halfW;
-			const float sz = y * cellSize - halfH;
-			const float sy = terrain.h(x, y);
-
-			terrainMesh.addVertex(ofVec3f(sx, sy, sz));
-			terrainMesh.addNormal(ofVec3f(0, 1, 0));
-		}
-	}
-
-	float minE = std::numeric_limits<float>::max();
-	float maxE = std::numeric_limits<float>::lowest();
-	for (float e : terrain.elevation) {
-		minE = std::min(minE, e);
-		maxE = std::max(maxE, e);
-	}
-	const float range = std::max(1e-6f, maxE - minE);
-
-	for (std::size_t i = 0; i < terrainMesh.getNumVertices(); ++i) {
-		const float e = terrain.elevation[i];
-		const float norm = ofClamp((e - minE) / range, 0.0f, 1.0f);
-
-		ofFloatColor col;
-		if (norm < 0.3f) {
-			col = ofFloatColor(0.1f, 0.3f + 0.5f * norm, 0.1f);
-		} else if (norm < 0.7f) {
-			const float u = (norm - 0.3f) / 0.4f;
-			col = ofFloatColor(0.4f + 0.3f * u, 0.4f + 0.3f * u, 0.35f + 0.2f * u);
-		} else {
-			const float u = (norm - 0.7f) / 0.3f;
-			col = ofFloatColor(0.8f + 0.2f * u, 0.8f + 0.2f * u, 0.8f + 0.2f * u);
-		}
-
-		terrainMesh.addColor(col);
-	}
-
-	for (int y = 0; y < h - 1; ++y) {
-		for (int x = 0; x < w - 1; ++x) {
-			const int i0 = y * w + x;
-			const int i1 = y * w + (x + 1);
-			const int i2 = (y + 1) * w + x;
-			const int i3 = (y + 1) * w + (x + 1);
-
-			terrainMesh.addIndex(i0);
-			terrainMesh.addIndex(i2);
-			terrainMesh.addIndex(i1);
-
-			terrainMesh.addIndex(i1);
-			terrainMesh.addIndex(i2);
-			terrainMesh.addIndex(i3);
-		}
-	}
-
-	recomputeNormals(terrainMesh);
+    // Using per-vertex colors; no shader uniform caching needed
 }
 
 //--------------------------------------------------------------
@@ -208,22 +179,27 @@ void ofApp::recomputeNormals(ofVboMesh& mesh) {
 
 //--------------------------------------------------------------
 void ofApp::keyPressed(int key){
-	if (key == 'e' || key == 'E') {
-		showWireframe = !showWireframe;
-	} else if (key == 'r' || key == 'R') {
-		showWireframe = false;
-		rebuildTerrainMesh(true);
+    if (key == 'e' || key == 'E') {
+        wireframeOn = !wireframeOn;
+        ofLogNotice() << "[view] wireframe = " << (wireframeOn ? "ON" : "OFF");
+    } else if (key == 'r' || key == 'R') {
+        wireframeOn = false;
+        rebuildTerrainMesh(true);
 	} else if ((key == 'f' || key == 'F') && terrainReady) {
 		computeDrainage(terrain);
 		applyFluvialErosion(terrain, fluvialParams);
 		rebuildTerrainMesh(false);
-	} else if ((key == 't' || key == 'T') && terrainReady) {
-		applyThermalErosion(terrain, thermalParams);
-		rebuildTerrainMesh(false);
-	} else if (key == 'w' || key == 'W') {
-		cam.dolly(cameraMoveStep);
-	} else if (key == 's' || key == 'S') {
-		cam.dolly(-cameraMoveStep);
+    } else if ((key == 't' || key == 'T') && terrainReady) {
+        applyThermalErosion(terrain, thermalParams);
+        rebuildTerrainMesh(false);
+    } else if (key == 'u' || key == 'U') {
+        // Upsample the current heightfield and rebuild the mesh
+        terrain = upsample2xBilinear(terrain);
+        rebuildTerrainMesh(false);
+    } else if (key == 'w' || key == 'W') {
+        cam.dolly(cameraMoveStep);
+    } else if (key == 's' || key == 'S') {
+        cam.dolly(-cameraMoveStep);
 	} else if (key == 'a' || key == 'A') {
 		cam.truck(-cameraMoveStep);
 	} else if (key == 'd' || key == 'D') {

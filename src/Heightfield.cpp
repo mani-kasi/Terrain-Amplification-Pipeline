@@ -206,3 +206,96 @@ void Heightfield::generateTestTerrain(float minHeight,
 
     clearMasks();
 }
+
+// --------------------------------------------------------------
+// Helper functions operating on Heightfield elevation
+
+Heightfield clone(const Heightfield& h) {
+    Heightfield c;
+    c.width = h.width;
+    c.height = h.height;
+    c.elevation = h.elevation;
+    c.hardness = h.hardness;
+    c.drainage = h.drainage;
+    return c;
+}
+
+void addScaled(Heightfield& dst, const Heightfield& src, float s) {
+    if (dst.width != src.width || dst.height != src.height) {
+#ifndef NDEBUG
+        assert(false && "addScaled: dimension mismatch");
+#endif
+        const int n = std::min<int>(static_cast<int>(dst.elevation.size()), static_cast<int>(src.elevation.size()));
+        for (int i = 0; i < n; ++i) {
+            dst.elevation[i] += s * src.elevation[i];
+        }
+        return;
+    }
+    const int n = dst.width * dst.height;
+    for (int i = 0; i < n; ++i) {
+        dst.elevation[i] += s * src.elevation[i];
+    }
+}
+
+void sub(const Heightfield& a, const Heightfield& b, Heightfield& out) {
+    const int w = a.width;
+    const int h = a.height;
+    if (out.width != w || out.height != h) {
+        out.allocate(w, h);
+    }
+    const int n = std::min<int>(w * h, static_cast<int>(std::min(a.elevation.size(), b.elevation.size())));
+    for (int i = 0; i < n; ++i) {
+        out.elevation[i] = a.elevation[i] - b.elevation[i];
+    }
+}
+
+Heightfield upsample2xBilinear(const Heightfield& src) {
+    Heightfield dst;
+    if (src.width <= 0 || src.height <= 0 || src.elevation.empty()) {
+        dst.allocate(0, 0);
+        return dst;
+    }
+
+    const int W2 = src.width * 2;
+    const int H2 = src.height * 2;
+    dst.allocate(W2, H2);
+
+    for (int Y = 0; Y < H2; ++Y) {
+        const float sy = (static_cast<float>(Y) + 0.5f) * 0.5f - 0.5f;
+        const int y0f = static_cast<int>(std::floor(sy));
+        int y0 = y0f;
+        int y1 = y0f + 1;
+        float ty = sy - static_cast<float>(y0f);
+        if (y0 < 0) y0 = 0;
+        if (y1 < 0) y1 = 0;
+        if (y0 >= src.height) y0 = src.height - 1;
+        if (y1 >= src.height) y1 = src.height - 1;
+
+        for (int X = 0; X < W2; ++X) {
+            const float sx = (static_cast<float>(X) + 0.5f) * 0.5f - 0.5f;
+            const int x0f = static_cast<int>(std::floor(sx));
+            int x0 = x0f;
+            int x1 = x0f + 1;
+            float tx = sx - static_cast<float>(x0f);
+            if (x0 < 0) x0 = 0;
+            if (x1 < 0) x1 = 0;
+            if (x0 >= src.width) x0 = src.width - 1;
+            if (x1 >= src.width) x1 = src.width - 1;
+
+            const float v00 = src.h(x0, y0);
+            const float v10 = src.h(x1, y0);
+            const float v01 = src.h(x0, y1);
+            const float v11 = src.h(x1, y1);
+
+            const float oneMinusTx = 1.0f - tx;
+            const float oneMinusTy = 1.0f - ty;
+            const float v = (oneMinusTx * oneMinusTy) * v00 + (tx * oneMinusTy) * v10
+                          + (oneMinusTx * ty) * v01      + (tx * ty) * v11;
+
+            dst.h(X, Y) = v;
+        }
+    }
+
+    // Leave hardness/drainage as defaults for now.
+    return dst;
+}

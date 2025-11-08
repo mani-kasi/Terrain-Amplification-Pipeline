@@ -230,6 +230,7 @@
 		<ClCompile Include="src\ofApp.cpp" />
 		<ClCompile Include="src\Erosion.cpp" />
 		<ClCompile Include="src\Heightfield.cpp" />
+		<ClCompile Include="src\MeshBuild.cpp" />
 		<ClCompile Include="..\..\..\addons\ofxGui\src\ofxBaseGui.cpp" />
 		<ClCompile Include="..\..\..\addons\ofxGui\src\ofxButton.cpp" />
 		<ClCompile Include="..\..\..\addons\ofxGui\src\ofxColorPicker.cpp" />
@@ -245,6 +246,7 @@
 		<ClInclude Include="src\ofApp.h" />
 		<ClInclude Include="src\Erosion.h" />
 		<ClInclude Include="src\Heightfield.h" />
+		<ClInclude Include="src\MeshBuild.h" />
 		<ClInclude Include="..\..\..\addons\ofxGui\src\ofxBaseGui.h" />
 		<ClInclude Include="..\..\..\addons\ofxGui\src\ofxButton.h" />
 		<ClInclude Include="..\..\..\addons\ofxGui\src\ofxColorPicker.h" />

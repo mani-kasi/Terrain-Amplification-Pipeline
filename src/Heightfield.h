@@ -49,3 +49,15 @@ public:
                              float maxHeight = 100.0f,
                              std::uint64_t seed = 0);
 };
+
+// Upsample elevation to 2x in each dimension using bilinear filtering
+Heightfield upsample2xBilinear(const Heightfield& src);
+
+// Add scaled source elevation into destination: dst += s * src
+void addScaled(Heightfield& dst, const Heightfield& src, float s);
+
+// Compute element-wise difference of elevation: out = a - b
+void sub(const Heightfield& a, const Heightfield& b, Heightfield& out);
+
+// Deep copy of a heightfield
+Heightfield clone(const Heightfield& h);

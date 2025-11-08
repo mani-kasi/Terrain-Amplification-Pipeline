@@ -3,6 +3,7 @@
 #include "ofMain.h"
 #include "Heightfield.h"
 #include "Erosion.h"
+#include "MeshBuild.h"
 #include <cstdint>
 
 class ofApp : public ofBaseApp{
@@ -24,21 +25,22 @@ class ofApp : public ofBaseApp{
 		void dragEvent(ofDragInfo dragInfo);
 		void gotMessage(ofMessage msg);
 
-		void rebuildTerrainMesh(bool regenerateTerrain = false);
-		void recomputeNormals(ofVboMesh& mesh);
+    void rebuildTerrainMesh(bool regenerateTerrain = false);
+    void recomputeNormals(ofVboMesh& mesh);
 
-		int terrainResolution = 1024;
-		Heightfield terrain;
-		FluvialParams fluvialParams;
-		ThermalParams thermalParams;
-		std::uint64_t terrainSeed = 0;
-		ofVboMesh terrainMesh;
-		ofEasyCam cam;
-		ofLight dirLight;
+    int terrainResolution = 1024;
+    Heightfield terrain;
+    FluvialParams fluvialParams;
+    ThermalParams thermalParams;
+    std::uint64_t terrainSeed = 0;
+    ofMesh terrainMesh;
+    ofEasyCam cam;
+    ofLight dirLight;
 
-		bool showWireframe = false;
-		float cellSize = 1.0f;
-		bool terrainReady = false;
-		float cameraMoveStep = 50.0f;
+    bool wireframeOn = false;
+    float cellSize = 1.0f;
+    TerrainWorld terrainWorld;
+    bool terrainReady = false;
+    float cameraMoveStep = 50.0f;
 		
 };
