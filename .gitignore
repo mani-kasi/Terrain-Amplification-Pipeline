@@ -1,0 +1,61 @@
+# ===== Visual Studio =====
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# IntelliSense / DB
+*.VC.db
+*.VC.VC.opendb
+*.opendb
+*.ipch
+
+# Build artifacts
+*.obj
+*.iobj
+*.pch
+*.pdb
+*.idb
+*.ilk
+*.exp
+*.lib
+*.dll
+*.exe
+*.app
+*.log
+*.tlog
+*.cache
+*.lastbuildstate
+*.tmp
+*.rsp
+*.manifest
+
+# VS output folders
+/Debug/
+/Release/
+/x64/
+/x86/
+/ARM/
+/ARM64/
+/ipch/
+/out/
+/build/
+/obj/
+
+# Ignore per-user project settings
+*.vcxproj.user
+
+# ===== openFrameworks (Windows) =====
+# Ignore compiled output but keep runtime assets
+/bin/*
+!/bin/data/**
+/obj/
+
+# Common OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# VS Code (uncomment to ignore workspace settings)
+#.vscode/
