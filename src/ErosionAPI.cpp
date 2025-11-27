@@ -3,21 +3,81 @@
 
 #include <algorithm>
 #include <cmath>
+#include <vector>
 
 namespace {
     // degrees → radians without relying on M_PI
     constexpr float kDeg2Rad = 0.01745329251994329577f; // pi/180
+    constexpr float kEpsA    = 1e-6f;
+
+    // Compute slope magnitude |∇h| per cell (grid units)
+    void computeSlopeMag(const Heightfield& H, std::vector<float>& out) {
+        const int w = H.width;
+        const int h = H.height;
+        if (w <= 0 || h <= 0) {
+            out.clear();
+            return;
+        }
+        out.assign(static_cast<std::size_t>(w) * static_cast<std::size_t>(h), 0.0f);
+        auto idx = [w](int x, int y) { return y * w + x; };
+
+        for (int y = 0; y < h; ++y) {
+            for (int x = 0; x < w; ++x) {
+                const int xm = std::max(0, x - 1);
+                const int xp = std::min(w - 1, x + 1);
+                const int ym = std::max(0, y - 1);
+                const int yp = std::min(h - 1, y + 1);
+
+                const float dzdx = H.h(xp, y) - H.h(xm, y);
+                const float dzdy = H.h(x, yp) - H.h(x, ym);
+
+                const float gx = dzdx * 0.5f;
+                const float gy = dzdy * 0.5f;
+                out[static_cast<std::size_t>(idx(x, y))] = std::sqrt(gx * gx + gy * gy);
+            }
+        }
+    }
 }
 
-void runFluvialPass(Heightfield& H, int iters, float Kf, float /*p*/, float /*q*/) {
-    FluvialParams params;
-    params.k = Kf;
-    // Leave dt, minSlope, intensity at their current defaults.
+// Δh ∝ Kf · A^p · S^q, with per-step clamping
+void runFluvialPass(Heightfield& H, int iters, float Kf, float p, float q) {
+    const int w = H.width;
+    const int h = H.height;
+    if (w <= 0 || h <= 0 || iters <= 0 || Kf == 0.0f) {
+        return;
+    }
 
-    const int steps = std::max(0, iters);
-    for (int i = 0; i < steps; ++i) {
-        computeDrainage(H);
-        applyFluvialErosion(H, params);
+    const int n = w * h;
+
+    // Precompute slope magnitude once for this pass
+    std::vector<float> S;
+    computeSlopeMag(H, S);
+    if (static_cast<int>(S.size()) != n) {
+        return;
+    }
+
+    const float maxErodePerIter = 0.4f; // clamp in normalized height units
+
+    for (int it = 0; it < iters; ++it) {
+        // Drainage area A for current surface
+        computeDrainage(H); // fills H.drainage
+
+        for (int y = 0; y < h; ++y) {
+            for (int x = 0; x < w; ++x) {
+                const int i = y * w + x;
+                const float A = std::max(H.drainage[static_cast<std::size_t>(i)], 0.0f) + kEpsA;
+                const float Smag = std::max(S[static_cast<std::size_t>(i)], 0.0f);
+
+                float cap = Kf * std::pow(A, p) * std::pow(Smag, q);
+                cap = ofClamp(cap, -maxErodePerIter, maxErodePerIter);
+
+                H.elevation[static_cast<std::size_t>(i)] -= cap;
+                if (!std::isfinite(H.elevation[static_cast<std::size_t>(i)])) {
+                    H.elevation[static_cast<std::size_t>(i)] = 0.0f;
+                }
+            }
+        }
+        // Optional: diffusion/smoothing could be added here if needed.
     }
 }
 
@@ -34,3 +94,4 @@ void runThermalPass(Heightfield& H, int iters, float Kt, float talusDeg) {
         applyThermalErosion(H, params);
     }
 }
+

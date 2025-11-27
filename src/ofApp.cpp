@@ -137,6 +137,14 @@ void ofApp::draw(){
     hud.push_back("Grid: " + std::to_string(terrain.width) + "x" + std::to_string(terrain.height));
     hud.push_back("World: " + std::to_string(static_cast<int>(terrainWorld.worldWidth)) +
                   " x " + std::to_string(static_cast<int>(terrainWorld.worldDepth)));
+    if (!cfg.scales.empty()) {
+        const auto& s0 = cfg.scales.front();
+        std::ostringstream oss;
+        oss << "Fluvial: dh ∝ Kf·A^p·S^q (Kf=" << s0.Kf
+            << ", p=" << s0.p
+            << ", q=" << s0.q << ")";
+        hud.push_back(oss.str());
+    }
     hud.push_back(std::string("View: ") + ((viewMode == ViewMode::Base) ? "Base" : "Multi-Scale"));
     hud.push_back("Mesh vertices: " + std::to_string(static_cast<int>(terrainMesh.getNumVertices())));
 
