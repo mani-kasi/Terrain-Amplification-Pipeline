@@ -8,6 +8,7 @@
 #include "ErosionAPI.h"
 #include "MultiScale.h"
 #include "Hydrology.h"
+#include "Retarget.h"
 #include <cstdint>
 
 class ofApp : public ofBaseApp{

@@ -281,21 +281,19 @@ void ofApp::keyPressed(int key){
         // Upsample the current heightfield and rebuild the mesh
         terrain = upsample2xBilinear(terrain);
         rebuildTerrainMesh(false);
-    } else if (key == 'm' || key == 'M') {
-        const std::uint64_t t0 = ofGetElapsedTimeMillis();
-        H_ms = runMultiScale(H_base, cfg, runFluvialPass, runThermalPass);
-        const std::uint64_t t1 = ofGetElapsedTimeMillis();
-        ofLogNotice() << "[ms] runtime " << (t1 - t0) << " ms, grid="
-                      << H_ms.width << "x" << H_ms.height;
-        terrain = H_ms;
-        hasMultiScale = true;
-        viewMode = ViewMode::MultiScale;
-        rebuildTerrainMesh(false);
-    } else if (key == 'p' || key == 'P') {
-        ofLogNotice() << "[hydro] priority-flood fill";
-        priorityFloodFill(terrain, 1e-4f);
-        rebuildTerrainMesh(false);
-    } else if (key == 'b' || key == 'B') {
+      } else if (key == 'm' || key == 'M') {
+          const std::uint64_t t0 = ofGetElapsedTimeMillis();
+          H_ms = runMultiScale(H_base, cfg, runFluvialPass, runThermalPass);
+          const std::uint64_t t1 = ofGetElapsedTimeMillis();
+          ofLogNotice() << "[ms] runtime " << (t1 - t0) << " ms, grid="
+                        << H_ms.width << "x" << H_ms.height;
+          terrain = H_ms;
+          hasMultiScale = true;
+          viewMode = ViewMode::MultiScale;
+          rebuildTerrainMesh(false);
+          runRetargetPeaks(terrain, H_base, 8, 0.20f, 0.02f);
+          rebuildTerrainMesh(false);
+      } else if (key == 'b' || key == 'B') {
         viewMode = ViewMode::Base;
         terrain = H_base;
         rebuildTerrainMesh(false);
