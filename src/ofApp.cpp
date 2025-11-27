@@ -291,6 +291,10 @@ void ofApp::keyPressed(int key){
         hasMultiScale = true;
         viewMode = ViewMode::MultiScale;
         rebuildTerrainMesh(false);
+    } else if (key == 'p' || key == 'P') {
+        ofLogNotice() << "[hydro] priority-flood fill";
+        priorityFloodFill(terrain, 1e-4f);
+        rebuildTerrainMesh(false);
     } else if (key == 'b' || key == 'B') {
         viewMode = ViewMode::Base;
         terrain = H_base;

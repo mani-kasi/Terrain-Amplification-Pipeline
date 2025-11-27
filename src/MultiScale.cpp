@@ -1,6 +1,7 @@
 #include "MultiScale.h"
 #include "Heightfield.h"
 #include "ErosionAPI.h"
+#include "Hydrology.h"
 #include "ofMain.h"
 
 #include <algorithm>
@@ -65,5 +66,7 @@ Heightfield runMultiScale(
             break;
         }
     }
+    // Final hydrology fix: minimal pit-filling so water can reach the boundary
+    priorityFloodFill(H, 1e-4f);
     return H;
 }
