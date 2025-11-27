@@ -40,6 +40,10 @@ class ofApp : public ofBaseApp{
     ofEasyCam cam;
     ofLight dirLight;
 
+    enum class ColorMode { Height, LogDrainage, Slope };
+    ColorMode colorMode = ColorMode::Height;
+    bool overlayNeedsRecolor = true;
+
     bool wireframeOn = false;
     PipelineConfig cfg;
 

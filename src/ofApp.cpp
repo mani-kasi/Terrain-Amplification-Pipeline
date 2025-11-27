@@ -131,6 +131,7 @@ void ofApp::draw(){
     hud.push_back("M: Run multi-scale pipeline");
     hud.push_back("B: View BASE");
     hud.push_back("V: View MULTI-SCALE");
+    hud.push_back("G: Cycle color mode (Height / Log-Drainage / Slope)");
     hud.push_back("");
     hud.push_back("Seed: " + std::to_string(static_cast<unsigned long long>(terrainSeed)));
     hud.push_back("Grid: " + std::to_string(terrain.width) + "x" + std::to_string(terrain.height));
@@ -177,7 +178,27 @@ void ofApp::rebuildTerrainMesh(bool regenerateTerrain) {
                   << " idx=" << terrainMesh.getNumIndices()
                   << " mode=" << terrainMesh.getMode();
 
-    // Using per-vertex colors; no shader uniform caching needed
+    // Apply color mode
+    switch (colorMode) {
+        case ColorMode::Height:
+            colorByHeight(terrainMesh, terrain);
+            break;
+        case ColorMode::LogDrainage:
+            // Use terrain's drainage field (computeDrainage must have been called)
+            colorByLogDrainage(terrainMesh, terrain, terrain);
+            break;
+        case ColorMode::Slope: {
+            const float dx = (terrain.width > 1)
+                ? terrainWorld.worldWidth / static_cast<float>(terrain.width - 1)
+                : 1.0f;
+            const float dy = (terrain.height > 1)
+                ? terrainWorld.worldDepth / static_cast<float>(terrain.height - 1)
+                : 1.0f;
+            colorBySlope(terrainMesh, terrain, dx, dy);
+            break;
+        }
+    }
+    overlayNeedsRecolor = false;
 }
 
 //--------------------------------------------------------------
@@ -225,6 +246,14 @@ void ofApp::keyPressed(int key){
     if (key == 'e' || key == 'E') {
         wireframeOn = !wireframeOn;
         ofLogNotice() << "[view] wireframe = " << (wireframeOn ? "ON" : "OFF");
+    } else if (key == 'g' || key == 'G') {
+        colorMode = (colorMode == ColorMode::Height)
+            ? ColorMode::LogDrainage
+            : (colorMode == ColorMode::LogDrainage ? ColorMode::Slope
+                                                   : ColorMode::Height);
+        overlayNeedsRecolor = true;
+        ofLogNotice() << "[view] colorMode=" << static_cast<int>(colorMode);
+        rebuildTerrainMesh(false);
     } else if (key == 'r' || key == 'R') {
         wireframeOn = false;
         rebuildTerrainMesh(true);
