@@ -11,9 +11,10 @@ struct ScaleParams {
   float Kt;             // thermal coefficient
   float talusDeg;       // angle of repose in degrees
   float blend;          // 0..1: blend amount for this scale
+  float Kd;             // deposition coefficient
+  float slopeCut;       // slope cutoff threshold for deposition
 };
 
 struct PipelineConfig {
   std::vector<ScaleParams> scales; // coarse -> fine
 };
-

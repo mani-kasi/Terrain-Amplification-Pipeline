@@ -1,5 +1,7 @@
 #include "MultiScale.h"
 #include "Heightfield.h"
+#include "ErosionAPI.h"
+#include "ofMain.h"
 
 #include <algorithm>
 #include <limits>
@@ -41,6 +43,14 @@ Heightfield runMultiScale(
         if (thermal) {
             thermal(H, S.itersThermal, S.Kt, S.talusDeg);
         }
+        // Light deposition pass after thermal to widen valley floors
+        const int depIters = std::max(1, S.itersThermal / 2);
+        if (depIters > 0 && S.Kd != 0.0f) {
+            const auto tD0 = ofGetElapsedTimeMillis();
+            runDepositionPass(H, depIters, S.Kd, S.slopeCut);
+            const auto tD1 = ofGetElapsedTimeMillis();
+            ofLogNotice() << "[ms]   deposition " << (tD1 - tD0) << " ms";
+        }
 
         // Blend detail: H = H_before + blend * (H - H_before)
         Heightfield delta = clone(H_before);
@@ -57,4 +67,3 @@ Heightfield runMultiScale(
     }
     return H;
 }
-

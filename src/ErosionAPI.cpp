@@ -95,3 +95,47 @@ void runThermalPass(Heightfield& H, int iters, float Kt, float talusDeg) {
     }
 }
 
+// Light deposition pass: smooths gentle slopes (widens valley floors)
+void runDepositionPass(Heightfield& H, int iters, float Kd, float slopeCutoff) {
+    const int w = H.width;
+    const int h = H.height;
+    if (w <= 0 || h <= 0 || iters <= 0 || Kd == 0.0f) {
+        return;
+    }
+
+    // Use a flat array for slope magnitude, reusing the helper
+    std::vector<float> S;
+    computeSlopeMag(H, S);
+    if (static_cast<int>(S.size()) != w * h) {
+        return;
+    }
+
+    const float maxMove = 0.25f; // clamp per-iter movement (normalized units)
+    auto idx = [w](int x, int y) { return y * w + x; };
+
+    for (int it = 0; it < iters; ++it) {
+        for (int y = 0; y < h; ++y) {
+            for (int x = 0; x < w; ++x) {
+                const int i = idx(x, y);
+                if (S[static_cast<std::size_t>(i)] >= slopeCutoff) {
+                    continue; // only deposit on gentle areas
+                }
+
+                const int xm = std::max(0, x - 1);
+                const int xp = std::min(w - 1, x + 1);
+                const int ym = std::max(0, y - 1);
+                const int yp = std::min(h - 1, y + 1);
+
+                const float mean4 =
+                    0.25f * (H.h(xm, y) + H.h(xp, y) +
+                             H.h(x, ym) + H.h(x, yp));
+
+                float delta = Kd * (mean4 - H.h(x, y)); // pull toward neighbor mean
+                delta = ofClamp(delta, -maxMove, maxMove);       // safety
+                H.h(x, y) += delta;
+            }
+        }
+        // refresh slope after each small pass so the mask stays meaningful
+        computeSlopeMag(H, S);
+    }
+}

@@ -85,10 +85,12 @@ void ofApp::setup(){
 
     // Initialize multi-scale pipeline configuration (coarse -> fine)
     cfg.scales = {
-        { /*itF*/80, /*itT*/15, /*Kf*/0.015f, /*p*/0.5f, /*q*/1.0f,
-          /*Kt*/0.30f, /*talus*/32.0f, /*blend*/0.65f },
-        { /*itF*/40, /*itT*/ 8, /*Kf*/0.008f, /*p*/0.5f, /*q*/1.0f,
-          /*Kt*/0.20f, /*talus*/32.0f, /*blend*/0.80f }
+        { 30, 8,  0.010f, 0.5f, 1.0f,
+          0.25f, 32.0f, 0.65f,
+          0.12f, 0.05f },
+        { 12, 5,  0.006f, 0.5f, 1.0f,
+          0.18f, 32.0f, 0.80f,
+          0.08f, 0.04f }
     };
 }
 
@@ -186,22 +188,22 @@ void ofApp::rebuildTerrainMesh(bool regenerateTerrain) {
                   << " idx=" << terrainMesh.getNumIndices()
                   << " mode=" << terrainMesh.getMode();
 
-    // Apply color mode
+    // Apply color mode (compute fresh drainage/slope for current terrain)
     switch (colorMode) {
         case ColorMode::Height:
             colorByHeight(terrainMesh, terrain);
             break;
-        case ColorMode::LogDrainage:
-            // Use terrain's drainage field (computeDrainage must have been called)
-            colorByLogDrainage(terrainMesh, terrain, terrain);
+        case ColorMode::LogDrainage: {
+            Heightfield A = clone(terrain);
+            computeDrainage(A); // fills A.drainage for current surface
+            colorByLogDrainage(terrainMesh, terrain, A);
             break;
+        }
         case ColorMode::Slope: {
-            const float dx = (terrain.width > 1)
-                ? terrainWorld.worldWidth / static_cast<float>(terrain.width - 1)
-                : 1.0f;
-            const float dy = (terrain.height > 1)
-                ? terrainWorld.worldDepth / static_cast<float>(terrain.height - 1)
-                : 1.0f;
+            const float dx = terrainWorld.worldWidth /
+                static_cast<float>(std::max(1, terrain.width - 1));
+            const float dy = terrainWorld.worldDepth /
+                static_cast<float>(std::max(1, terrain.height - 1));
             colorBySlope(terrainMesh, terrain, dx, dy);
             break;
         }
