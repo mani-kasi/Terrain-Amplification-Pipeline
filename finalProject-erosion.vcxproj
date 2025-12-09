@@ -177,7 +177,7 @@
 	<ItemDefinitionGroup Condition="'$(Platform)'=='x64'">
 		<PostBuildEvent>
 			<Command>
-            xcopy /Y /E "$(ProjectDir)dll\x64\*.dll" "$(TargetDir)"
+            if exist "$(ProjectDir)dll\x64\\" xcopy /Y /E "$(ProjectDir)dll\x64\*.dll" "$(TargetDir)"
         </Command>
 		</PostBuildEvent>
 		<ClCompile>
@@ -194,7 +194,7 @@
 	<ItemDefinitionGroup Condition="'$(Platform)'=='ARM64'">
 		<PostBuildEvent>
 			<Command>
-            xcopy /Y /E "$(ProjectDir)dll\ARM64\*.dll" "$(TargetDir)"
+            if exist "$(ProjectDir)dll\ARM64\\" xcopy /Y /E "$(ProjectDir)dll\ARM64\*.dll" "$(TargetDir)"
         </Command>
 		</PostBuildEvent>
 		<ClCompile>
@@ -211,7 +211,7 @@
 	<ItemDefinitionGroup Condition="'$(Platform)'=='ARM64EC'">
 		<PostBuildEvent>
 			<Command>
-            xcopy /Y /E "$(ProjectDir)dll\ARM64EC\*.dll" "$(TargetDir)"
+            if exist "$(ProjectDir)dll\ARM64EC\\" xcopy /Y /E "$(ProjectDir)dll\ARM64EC\*.dll" "$(TargetDir)"
         </Command>
 		</PostBuildEvent>
 		<ClCompile>

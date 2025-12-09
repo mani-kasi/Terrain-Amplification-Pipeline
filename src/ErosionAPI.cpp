@@ -6,7 +6,7 @@
 #include <vector>
 
 namespace {
-    // degrees → radians without relying on M_PI
+    // degrees -> radians without relying on M_PI
     constexpr float kDeg2Rad = 0.01745329251994329577f; // pi/180
     constexpr float kEpsA    = 1e-6f;
 
@@ -39,7 +39,7 @@ namespace {
     }
 }
 
-// Δh ∝ Kf · A^p · S^q, with per-step clamping
+// dh -= Kf * A^p * S^q, hardness-scaled, with per-step clamping
 void runFluvialPass(Heightfield& H, int iters, float Kf, float p, float q) {
     const int w = H.width;
     const int h = H.height;
@@ -49,16 +49,17 @@ void runFluvialPass(Heightfield& H, int iters, float Kf, float p, float q) {
 
     const int n = w * h;
 
-    // Precompute slope magnitude once for this pass
-    std::vector<float> S;
-    computeSlopeMag(H, S);
-    if (static_cast<int>(S.size()) != n) {
-        return;
-    }
-
     const float maxErodePerIter = 0.4f; // clamp in normalized height units
+    std::vector<float> S;
+    S.reserve(static_cast<std::size_t>(n));
 
     for (int it = 0; it < iters; ++it) {
+        // Recompute slope and drainage each iteration so channels can keep sharpening
+        computeSlopeMag(H, S);
+        if (static_cast<int>(S.size()) != n) {
+            return;
+        }
+
         // Drainage area A for current surface
         computeDrainage(H); // fills H.drainage
 
@@ -69,6 +70,9 @@ void runFluvialPass(Heightfield& H, int iters, float Kf, float p, float q) {
                 const float Smag = std::max(S[static_cast<std::size_t>(i)], 0.0f);
 
                 float cap = Kf * std::pow(A, p) * std::pow(Smag, q);
+                const float hard = ofClamp(H.hard(x, y), 0.0f, 1.0f);
+                const float hardnessFactor = 0.2f + 0.8f * (1.0f - hard);
+                cap *= hardnessFactor;
                 cap = ofClamp(cap, -maxErodePerIter, maxErodePerIter);
 
                 H.elevation[static_cast<std::size_t>(i)] -= cap;

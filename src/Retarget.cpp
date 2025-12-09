@@ -112,6 +112,7 @@ void runRetargetPeaks(Heightfield& H, const Heightfield& Hbase,
     const int Hh = H.height;
     if (W < 2 || Hh < 2) return;
 
+    // This is a constrained peak-restoration step, not a full target-edit retarget.
     // 1) Base upsampled to current grid
     Heightfield U = upsampleToMatch(Hbase, W, Hh);
 
@@ -166,6 +167,5 @@ void runRetargetPeaks(Heightfield& H, const Heightfield& Hbase,
         H.elevation[i] = std::max(hNew, H0.elevation[i]);
     }
 
-    // Tiny safety flood so no sinks remain after retarget
-    priorityFloodFill(H, 1e-5f);
+    // No global pit-fill here: breaching in the multi-scale pipeline already enforces connectivity.
 }

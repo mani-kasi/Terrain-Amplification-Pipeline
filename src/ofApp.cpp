@@ -42,6 +42,23 @@ namespace {
 	}
 }
 
+std::string ofApp::hardnessPresetName() const {
+    switch (hardnessPreset) {
+    case HardnessPreset::Noise: return "Noise";
+    case HardnessPreset::RadialCenterHard: return "Radial center hard";
+    case HardnessPreset::RadialEdgeHard: return "Radial edge hard";
+    case HardnessPreset::Uniform: return "Uniform";
+    }
+    return "Unknown";
+}
+
+void ofApp::applyCurrentHardness(Heightfield& h) {
+    if (hardnessPreset == HardnessPreset::Noise && hardnessSeed == 0) {
+        hardnessSeed = randomTerrainSeed();
+    }
+    h.applyHardnessPreset(hardnessPreset, hardnessSeed);
+}
+
 //--------------------------------------------------------------
 void ofApp::setup(){
 	ofSetVerticalSync(true);
@@ -57,21 +74,23 @@ void ofApp::setup(){
 	dirLight.setSpecularColor(ofFloatColor(0.8f, 0.8f, 0.8f));
 
 	terrainReady = true;
+    hardnessSeed = randomTerrainSeed();
+    hardnessPreset = HardnessPreset::Noise;
 
     // Fixed world extents independent of resolution (Y-up height)
     terrainWorld = TerrainWorld();
-    terrainWorld.worldWidth  = 1000.0f;
-    terrainWorld.worldDepth  = 1000.0f;
-    terrainWorld.heightScale = 80.0f; // modest while testing
+    terrainWorld.worldWidth  = 256.0f;
+    terrainWorld.worldDepth  = 256.0f;
+    terrainWorld.heightScale = 60.0f; // reduce vertical exaggeration
     terrainWorld.center      = true;
     const float maxDim = std::max(terrainWorld.worldWidth, terrainWorld.worldDepth);
-    cam.setDistance(maxDim * 1.5f);
+    cam.setDistance(maxDim * 1.2f);
 	cam.setNearClip(0.1f);
 	cam.setFarClip(10000.0f);
 
     // No custom shaders; using per-vertex colors
 
-    rebuildTerrainMesh(true);
+    rebuildTerrainMesh(true, true);
     // keep a coarsest/base copy for multi-scale
     H_base = terrain;
 
@@ -85,12 +104,22 @@ void ofApp::setup(){
 
     // Initialize multi-scale pipeline configuration (coarse -> fine)
     cfg.scales = {
-        { 30, 8,  0.010f, 0.5f, 1.0f,
-          0.25f, 32.0f, 0.65f,
-          0.12f, 0.05f },
-        { 12, 5,  0.006f, 0.5f, 1.0f,
-          0.18f, 32.0f, 0.80f,
-          0.08f, 0.04f }
+        // Scale 0: 256x256 (coarse; still moderate blend)
+        { 32, 6,  0.0120f, 0.5f, 1.0f,
+          0.22f, 32.0f, 0.45f,
+          0.04f, 0.045f },
+        // Scale 1: 512x512 (sharper, reduced smoothing)
+        { 28, 4,  0.0105f, 0.5f, 1.0f,
+          0.14f, 32.0f, 0.20f,
+          0.02f, 0.035f },
+        // Scale 2: 1024x1024 (very sharp, minimal smoothing)
+        { 26, 1,  0.0090f, 0.5f, 1.0f,
+          0.08f, 32.0f, 0.05f,
+          0.00f, 0.030f },
+        // Scale 3: 2048x2048 (finest; fluvial only, zero blend)
+        { 28, 0,  0.0085f, 0.5f, 1.0f,
+          0.00f, 32.0f, 0.00f,
+          0.00f, 0.030f }
     };
 }
 
@@ -127,22 +156,27 @@ void ofApp::draw(){
     hud.push_back("Controls:");
     hud.push_back(std::string("E: Wireframe [") + (wireframeOn ? "ON" : "OFF") + "]");
     hud.push_back("WASD: Move camera");
+    hud.push_back("R: Reset terrain (same seeds)");
+    hud.push_back("N: New seeds + reset terrain");
     hud.push_back("F: Fluvial erosion step");
     hud.push_back("T: Thermal erosion step");
+    hud.push_back("P: Deposition step");
     hud.push_back("U: Upsample 2x (fixed extents)");
     hud.push_back("M: Run multi-scale pipeline");
     hud.push_back("B: View BASE");
     hud.push_back("V: View MULTI-SCALE");
+    hud.push_back(std::string("H: Cycle hardness preset [") + hardnessPresetName() + "]");
     hud.push_back("G: Cycle color mode (Height / Log-Drainage / Slope)");
     hud.push_back("");
     hud.push_back("Seed: " + std::to_string(static_cast<unsigned long long>(terrainSeed)));
+    hud.push_back("Hardness seed: " + std::to_string(static_cast<unsigned long long>(hardnessSeed)));
     hud.push_back("Grid: " + std::to_string(terrain.width) + "x" + std::to_string(terrain.height));
     hud.push_back("World: " + std::to_string(static_cast<int>(terrainWorld.worldWidth)) +
                   " x " + std::to_string(static_cast<int>(terrainWorld.worldDepth)));
     if (!cfg.scales.empty()) {
         const auto& s0 = cfg.scales.front();
         std::ostringstream oss;
-        oss << "Fluvial: dh ∝ Kf·A^p·S^q (Kf=" << s0.Kf
+        oss << "Fluvial: dh -= Kf*A^p*S^q * hardness (Kf=" << s0.Kf
             << ", p=" << s0.p
             << ", q=" << s0.q << ")";
         hud.push_back(oss.str());
@@ -154,15 +188,21 @@ void ofApp::draw(){
 }
 
 //--------------------------------------------------------------
-void ofApp::rebuildTerrainMesh(bool regenerateTerrain) {
+void ofApp::rebuildTerrainMesh(bool regenerateTerrain, bool reseed) {
 	if (!terrainReady) {
 		return;
 	}
 
 	if (regenerateTerrain) {
 		terrain.allocate(terrainResolution, terrainResolution);
-		terrainSeed = randomTerrainSeed();
+        if (reseed || terrainSeed == 0) {
+            terrainSeed = randomTerrainSeed();
+        }
 		terrain.generateTestTerrain(0.0f, 60.0f, terrainSeed);
+        if (reseed || hardnessSeed == 0) {
+            hardnessSeed = randomTerrainSeed();
+        }
+        applyCurrentHardness(terrain);
 	}
 
     if (terrain.width <= 0 || terrain.height <= 0) {
@@ -172,15 +212,29 @@ void ofApp::rebuildTerrainMesh(bool regenerateTerrain) {
     // Log grid/world and height range (pre-scale)
     float minE = std::numeric_limits<float>::max();
     float maxE = std::numeric_limits<float>::lowest();
+    float minHard = std::numeric_limits<float>::max();
+    float maxHard = std::numeric_limits<float>::lowest();
     for (float e : terrain.elevation) {
         if (std::isfinite(e)) {
             minE = std::min(minE, e);
             maxE = std::max(maxE, e);
         }
     }
+    if (!terrain.hardness.empty()) {
+        for (float hVal : terrain.hardness) {
+            if (std::isfinite(hVal)) {
+                minHard = std::min(minHard, hVal);
+                maxHard = std::max(maxHard, hVal);
+            }
+        }
+    } else {
+        minHard = 1.0f;
+        maxHard = 1.0f;
+    }
     ofLogNotice() << "Grid: " << terrain.width << "x" << terrain.height
                   << ", World: " << terrainWorld.worldWidth << "x" << terrainWorld.worldDepth
-                  << ", Height range: [" << minE << ", " << maxE << "]";
+                  << ", Height range: [" << minE << ", " << maxE << "]"
+                  << ", Hardness range: [" << minHard << ", " << maxHard << "]";
 
     terrainMesh = buildTerrainMesh(terrain, terrainWorld);
     terrainMesh.setMode(OF_PRIMITIVE_TRIANGLES);
@@ -266,33 +320,80 @@ void ofApp::keyPressed(int key){
         rebuildTerrainMesh(false);
     } else if (key == 'r' || key == 'R') {
         wireframeOn = false;
-        rebuildTerrainMesh(true);
+        rebuildTerrainMesh(true, false); // regenerate with existing seeds
         H_base = terrain; // reset base
         hasMultiScale = false;
         viewMode = ViewMode::Base;
-	} else if ((key == 'f' || key == 'F') && terrainReady) {
-		computeDrainage(terrain);
-		applyFluvialErosion(terrain, fluvialParams);
-		rebuildTerrainMesh(false);
+        ofLogNotice() << "[reset] regenerated with same seeds=" << terrainSeed
+                      << ", hardnessSeed=" << hardnessSeed;
+	} else if (key == 'n' || key == 'N') {
+        wireframeOn = false;
+        rebuildTerrainMesh(true, true); // new seeds
+        H_base = terrain;
+        hasMultiScale = false;
+        viewMode = ViewMode::Base;
+        ofLogNotice() << "[reset] regenerated with new seeds=" << terrainSeed
+                      << ", hardnessSeed=" << hardnessSeed;
+    } else if ((key == 'f' || key == 'F') && terrainReady) {
+        computeDrainage(terrain);
+        applyFluvialErosion(terrain, fluvialParams);
+        rebuildTerrainMesh(false);
     } else if ((key == 't' || key == 'T') && terrainReady) {
         applyThermalErosion(terrain, thermalParams);
         rebuildTerrainMesh(false);
-    } else if (key == 'u' || key == 'U') {
-        // Upsample the current heightfield and rebuild the mesh
-        terrain = upsample2xBilinear(terrain);
+    } else if ((key == 'p' || key == 'P') && terrainReady) {
+        if (!cfg.scales.empty()) {
+            const auto& S = cfg.scales.front();
+            const int depIters = std::max(1, S.itersThermal / 2);
+            runDepositionPass(terrain, depIters, S.Kd, S.slopeCut);
+            ofLogNotice() << "[deposition] iters=" << depIters
+                          << " Kd=" << S.Kd
+                          << " slopeCut=" << S.slopeCut;
+            rebuildTerrainMesh(false);
+        } else {
+            ofLogWarning() << "[deposition] scales config empty";
+        }
+	} else if (key == 'u' || key == 'U') {
+		// Upsample the current heightfield and rebuild the mesh
+		terrain = upsample2xBilinear(terrain);
+		rebuildTerrainMesh(false);
+    } else if (key == 'h' || key == 'H') {
+        auto nextPreset = [](HardnessPreset p) {
+            switch (p) {
+            case HardnessPreset::Noise: return HardnessPreset::RadialCenterHard;
+            case HardnessPreset::RadialCenterHard: return HardnessPreset::RadialEdgeHard;
+            case HardnessPreset::RadialEdgeHard: return HardnessPreset::Uniform;
+            case HardnessPreset::Uniform: return HardnessPreset::Noise;
+            }
+            return HardnessPreset::Noise;
+        };
+        hardnessPreset = nextPreset(hardnessPreset);
+        hardnessSeed = randomTerrainSeed();
+        applyCurrentHardness(H_base);
+        terrain = H_base;
+        hasMultiScale = false;
+        viewMode = ViewMode::Base;
+        ofLogNotice() << "[hardness] preset=" << hardnessPresetName()
+                      << ", seed=" << hardnessSeed;
         rebuildTerrainMesh(false);
       } else if (key == 'm' || key == 'M') {
           const std::uint64_t t0 = ofGetElapsedTimeMillis();
           H_ms = runMultiScale(H_base, cfg, runFluvialPass, runThermalPass);
           const std::uint64_t t1 = ofGetElapsedTimeMillis();
-          ofLogNotice() << "[ms] runtime " << (t1 - t0) << " ms, grid="
+          const std::uint64_t t_ms = t1 - t0;
+          ofLogNotice() << "[ms] runtime " << t_ms << " ms, grid="
                         << H_ms.width << "x" << H_ms.height;
           terrain = H_ms;
           hasMultiScale = true;
           viewMode = ViewMode::MultiScale;
           rebuildTerrainMesh(false);
+          const std::uint64_t t2 = ofGetElapsedTimeMillis();
           runRetargetPeaks(terrain, H_base, 8, 0.20f, 0.02f);
+          const std::uint64_t t3 = ofGetElapsedTimeMillis();
+          const std::uint64_t t_retarget = t3 - t2;
+          H_ms = terrain;
           rebuildTerrainMesh(false);
+          ofLogNotice() << "[retarget] runtime " << t_retarget << " ms";
       } else if (key == 'b' || key == 'B') {
         viewMode = ViewMode::Base;
         terrain = H_base;

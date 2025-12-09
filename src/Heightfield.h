@@ -4,6 +4,13 @@
 #include <vector>
 #include <cstdint>
 
+enum class HardnessPreset {
+    Uniform,
+    RadialCenterHard,
+    RadialEdgeHard,
+    Noise
+};
+
 class Heightfield {
 public:
     int width = 0;
@@ -37,6 +44,10 @@ public:
     // Reset hardness and drainage masks
     void clearMasks();
 
+    // Populate hardness with a simple preset (radial or noise-based)
+    void applyHardnessPreset(HardnessPreset preset = HardnessPreset::Noise,
+                             std::uint64_t seed = 0);
+
     // Load/save heightfield from/into a grayscale PNG
     bool loadFromPng(const std::string& path,
                      float minHeight = 0.0f,
@@ -50,8 +61,11 @@ public:
                              std::uint64_t seed = 0);
 };
 
-// Upsample elevation to 2x in each dimension using bilinear filtering
+// Upsample elevation (and hardness) to 2x in each dimension using bilinear filtering
 Heightfield upsample2xBilinear(const Heightfield& src);
+
+// Upsample elevation (and hardness) to 2x using Catmull-Rom bicubic filtering
+Heightfield upsample2xBicubic(const Heightfield& src);
 
 // Add scaled source elevation into destination: dst += s * src
 void addScaled(Heightfield& dst, const Heightfield& src, float s);

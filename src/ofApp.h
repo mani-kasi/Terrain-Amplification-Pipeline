@@ -26,18 +26,22 @@ class ofApp : public ofBaseApp{
 		void mouseReleased(int x, int y, int button);
 		void mouseEntered(int x, int y);
 		void mouseExited(int x, int y);
-		void windowResized(int w, int h);
-		void dragEvent(ofDragInfo dragInfo);
-		void gotMessage(ofMessage msg);
+                void windowResized(int w, int h);
+                void dragEvent(ofDragInfo dragInfo);
+                void gotMessage(ofMessage msg);
 
-    void rebuildTerrainMesh(bool regenerateTerrain = false);
+    void rebuildTerrainMesh(bool regenerateTerrain = false, bool reseed = false);
     void recomputeNormals(ofVboMesh& mesh);
+    void applyCurrentHardness(Heightfield& h);
+    std::string hardnessPresetName() const;
 
-    int terrainResolution = 1024;
+    int terrainResolution = 256;
     Heightfield terrain;
     FluvialParams fluvialParams;
     ThermalParams thermalParams;
     std::uint64_t terrainSeed = 0;
+    std::uint64_t hardnessSeed = 0;
+    HardnessPreset hardnessPreset = HardnessPreset::Noise;
     ofMesh terrainMesh;
     ofEasyCam cam;
     ofLight dirLight;

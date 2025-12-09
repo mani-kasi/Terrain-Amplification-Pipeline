@@ -26,6 +26,7 @@ namespace {
     };
 }
 
+// Single-flow (D8) steepest-descent routing; simplified vs. paper's multi-flow
 void computeDrainage(Heightfield& hf) {
     const int w = hf.width;
     const int h = hf.height;

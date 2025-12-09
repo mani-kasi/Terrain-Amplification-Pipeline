@@ -9,6 +9,23 @@
 
 namespace {
     constexpr float kDefaultMinRange = 1e-6f;
+
+    float randomInRange(std::mt19937& rng, float minVal, float maxVal) {
+        std::uniform_real_distribution<float> dist(minVal, maxVal);
+        return dist(rng);
+    }
+
+    inline float cubicWeight(float x) {
+        x = std::fabs(x);
+        const float a = -0.5f; // Catmull-Rom
+        if (x <= 1.0f) {
+            return (a + 2.0f) * x * x * x - (a + 3.0f) * x * x + 1.0f;
+        } else if (x < 2.0f) {
+            return a * x * x * x - 5.0f * a * x * x + 8.0f * a * x - 4.0f * a;
+        } else {
+            return 0.0f;
+        }
+    }
 }
 
 void Heightfield::allocate(int w, int h) {
@@ -47,6 +64,92 @@ float& Heightfield::drain(int x, int y) {
 void Heightfield::clearMasks() {
     std::fill(hardness.begin(), hardness.end(), 1.0f);
     std::fill(drainage.begin(), drainage.end(), 0.0f);
+}
+
+void Heightfield::applyHardnessPreset(HardnessPreset preset, std::uint64_t seed) {
+    const int w = width;
+    const int h = height;
+    const int n = std::max(0, w * h);
+    if (n == 0) {
+        return;
+    }
+
+    if (static_cast<int>(hardness.size()) != n) {
+        hardness.assign(n, 1.0f);
+    }
+
+    auto idx = [w](int x, int y) {
+        return y * w + x;
+    };
+
+    std::mt19937 rng;
+    if (seed == 0) {
+        std::random_device rd;
+        rng.seed(rd());
+    } else {
+        rng.seed(static_cast<std::mt19937::result_type>(seed));
+    }
+
+    // Precompute geometry helpers
+    const float cx = (w - 1) * 0.5f;
+    const float cy = (h - 1) * 0.5f;
+    const float maxR = std::max(1.0f, std::sqrt(cx * cx + cy * cy));
+
+    // Noise offsets for the stochastic preset
+    ofVec2f noiseOffset0(randomInRange(rng, -5000.0f, 5000.0f),
+                         randomInRange(rng, -5000.0f, 5000.0f));
+    ofVec2f noiseOffset1(randomInRange(rng, -5000.0f, 5000.0f),
+                         randomInRange(rng, -5000.0f, 5000.0f));
+
+    for (int y = 0; y < h; ++y) {
+        const float v = (h > 1) ? static_cast<float>(y) / static_cast<float>(h - 1) : 0.0f;
+        for (int x = 0; x < w; ++x) {
+            const float u = (w > 1) ? static_cast<float>(x) / static_cast<float>(w - 1) : 0.0f;
+
+            float value = 1.0f;
+            switch (preset) {
+            case HardnessPreset::Uniform: {
+                value = 1.0f;
+                break;
+            }
+            case HardnessPreset::RadialCenterHard: {
+                const float dx = static_cast<float>(x) - cx;
+                const float dy = static_cast<float>(y) - cy;
+                const float r = std::sqrt(dx * dx + dy * dy) / maxR;
+                value = ofClamp(1.0f - 0.75f * r, 0.25f, 1.0f);
+                break;
+            }
+            case HardnessPreset::RadialEdgeHard: {
+                const float dx = static_cast<float>(x) - cx;
+                const float dy = static_cast<float>(y) - cy;
+                const float r = std::sqrt(dx * dx + dy * dy) / maxR;
+                value = ofClamp(0.25f + 0.75f * r, 0.0f, 1.0f);
+                break;
+            }
+            case HardnessPreset::Noise: {
+                // Simple 2-octave fBm to mimic geological variation
+                float freq = 2.0f;
+                float amp = 1.0f;
+                float sum = 0.0f;
+                float norm = 0.0f;
+                ofVec2f offs = noiseOffset0;
+                for (int octave = 0; octave < 2; ++octave) {
+                    float n = ofNoise(u * freq + offs.x, v * freq + offs.y);
+                    sum += amp * n;
+                    norm += amp;
+                    freq *= 2.3f;
+                    amp *= 0.55f;
+                    offs += noiseOffset1 * 0.15f; // drift between octaves
+                }
+                const float s = (norm > 0.0f) ? (sum / norm) : 0.5f;
+                value = ofClamp(0.25f + 0.75f * s, 0.0f, 1.0f);
+                break;
+            }
+            }
+
+            hardness[static_cast<std::size_t>(idx(x, y))] = value;
+        }
+    }
 }
 
 bool Heightfield::loadFromPng(const std::string& path,
@@ -104,13 +207,6 @@ bool Heightfield::saveToPng(const std::string& path) const {
 
     img.update();
     return img.save(path);
-}
-
-namespace {
-    float randomInRange(std::mt19937& rng, float minVal, float maxVal) {
-        std::uniform_real_distribution<float> dist(minVal, maxVal);
-        return dist(rng);
-    }
 }
 
 void Heightfield::generateTestTerrain(float minHeight,
@@ -259,6 +355,7 @@ Heightfield upsample2xBilinear(const Heightfield& src) {
     const int W2 = src.width * 2;
     const int H2 = src.height * 2;
     dst.allocate(W2, H2);
+    const bool hasHardness = static_cast<int>(src.hardness.size()) >= src.width * src.height;
 
     for (int Y = 0; Y < H2; ++Y) {
         const float sy = (static_cast<float>(Y) + 0.5f) * 0.5f - 0.5f;
@@ -293,9 +390,71 @@ Heightfield upsample2xBilinear(const Heightfield& src) {
                           + (oneMinusTx * ty) * v01      + (tx * ty) * v11;
 
             dst.h(X, Y) = v;
+
+            if (hasHardness) {
+                const std::size_t i00 = static_cast<std::size_t>(y0) * static_cast<std::size_t>(src.width) + static_cast<std::size_t>(x0);
+                const std::size_t i10 = static_cast<std::size_t>(y0) * static_cast<std::size_t>(src.width) + static_cast<std::size_t>(x1);
+                const std::size_t i01 = static_cast<std::size_t>(y1) * static_cast<std::size_t>(src.width) + static_cast<std::size_t>(x0);
+                const std::size_t i11 = static_cast<std::size_t>(y1) * static_cast<std::size_t>(src.width) + static_cast<std::size_t>(x1);
+
+                const float h00 = src.hardness[i00];
+                const float h10 = src.hardness[i10];
+                const float h01 = src.hardness[i01];
+                const float h11 = src.hardness[i11];
+
+                const float hVal = (oneMinusTx * oneMinusTy) * h00 + (tx * oneMinusTy) * h10
+                                 + (oneMinusTx * ty) * h01      + (tx * ty) * h11;
+                dst.hard(X, Y) = ofClamp(hVal, 0.0f, 1.0f);
+            }
         }
     }
 
-    // Leave hardness/drainage as defaults for now.
+    // Drainage is recomputed by downstream passes; keep defaults.
+    return dst;
+}
+
+Heightfield upsample2xBicubic(const Heightfield& src) {
+    Heightfield dst;
+    if (src.width <= 0 || src.height <= 0 || src.elevation.empty()) {
+        dst.allocate(0, 0);
+        return dst;
+    }
+
+    const int W2 = src.width * 2;
+    const int H2 = src.height * 2;
+    dst.allocate(W2, H2);
+    const bool hasHardness = static_cast<int>(src.hardness.size()) >= src.width * src.height;
+
+    auto sampleCubic = [&](const std::vector<float>& data, int w, int h, float sx, float sy) {
+        const int ix = static_cast<int>(std::floor(sx));
+        const int iy = static_cast<int>(std::floor(sy));
+        float accum = 0.0f;
+        for (int m = -1; m <= 2; ++m) {
+            const int yy = ofClamp(iy + m, 0, h - 1);
+            const float wy = cubicWeight(sy - static_cast<float>(iy + m));
+            for (int n = -1; n <= 2; ++n) {
+                const int xx = ofClamp(ix + n, 0, w - 1);
+                const float wx = cubicWeight(sx - static_cast<float>(ix + n));
+                accum += data[static_cast<std::size_t>(yy * w + xx)] * wx * wy;
+            }
+        }
+        return accum;
+    };
+
+    for (int Y = 0; Y < H2; ++Y) {
+        const float sy = (static_cast<float>(Y) + 0.5f) * 0.5f - 0.5f;
+        for (int X = 0; X < W2; ++X) {
+            const float sx = (static_cast<float>(X) + 0.5f) * 0.5f - 0.5f;
+            const float hVal = sampleCubic(src.elevation, src.width, src.height, sx, sy);
+            dst.h(X, Y) = hVal;
+
+            if (hasHardness) {
+                const float hardVal = sampleCubic(src.hardness, src.width, src.height, sx, sy);
+                dst.hard(X, Y) = ofClamp(hardVal, 0.0f, 1.0f);
+            }
+        }
+    }
+
+    // Drainage will be recomputed downstream.
     return dst;
 }
