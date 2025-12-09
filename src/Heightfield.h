@@ -1,77 +1,60 @@
 #pragma once
 
 #include "ofMain.h"
-#include <vector>
 #include <cstdint>
+#include <vector>
 
 enum class HardnessPreset {
-    Uniform,
-    RadialCenterHard,
-    RadialEdgeHard,
-    Noise
+	Uniform,
+	RadialCenterHard,
+	RadialEdgeHard,
+	Noise
 };
 
 class Heightfield {
 public:
-    int width = 0;
-    int height = 0;
+	int width = 0;
+	int height = 0;
 
-    // elevation in world units (e.g., meters)
-    std::vector<float> elevation;
+	std::vector<float> elevation;
 
-    // hardness mask: 0 = very soft (erodes easily), 1 = very hard (resists erosion)
-    std::vector<float> hardness;
+	std::vector<float> hardness;
 
-    // drainage area / water flux (for later erosion stages)
-    std::vector<float> drainage;
+	std::vector<float> drainage;
 
-    // Allocate all buffers for a given resolution
-    void allocate(int w, int h);
+	void allocate(int w, int h);
 
-    // Index helpers
-    int idx(int x, int y) const;
+	int idx(int x, int y) const;
 
-    // Accessors for elevation
-    float& h(int x, int y);
-    const float& h(int x, int y) const;
+	float & h(int x, int y);
+	const float & h(int x, int y) const;
 
-    // Accessors for hardness
-    float& hard(int x, int y);
+	float & hard(int x, int y);
 
-    // Accessors for drainage
-    float& drain(int x, int y);
+	float & drain(int x, int y);
 
-    // Reset hardness and drainage masks
-    void clearMasks();
+	void clearMasks();
 
-    // Populate hardness with a simple preset (radial or noise-based)
-    void applyHardnessPreset(HardnessPreset preset = HardnessPreset::Noise,
-                             std::uint64_t seed = 0);
+	void applyHardnessPreset(HardnessPreset preset = HardnessPreset::Noise,
+		std::uint64_t seed = 0);
 
-    // Load/save heightfield from/into a grayscale PNG
-    bool loadFromPng(const std::string& path,
-                     float minHeight = 0.0f,
-                     float maxHeight = 100.0f);
+	bool loadFromPng(const std::string & path,
+		float minHeight = 0.0f,
+		float maxHeight = 100.0f);
 
-    bool saveToPng(const std::string& path) const;
+	bool saveToPng(const std::string & path) const;
 
-    // Generate a synthetic test terrain (sin waves + Gaussian bumps)
-    void generateTestTerrain(float minHeight = 0.0f,
-                             float maxHeight = 100.0f,
-                             std::uint64_t seed = 0);
+	void generateTestTerrain(float minHeight = 0.0f,
+		float maxHeight = 100.0f,
+		std::uint64_t seed = 0);
 };
 
-// Upsample elevation (and hardness) to 2x in each dimension using bilinear filtering
-Heightfield upsample2xBilinear(const Heightfield& src);
+Heightfield upsample2xBilinear(const Heightfield & src);
 
-// Upsample elevation (and hardness) to 2x using Catmull-Rom bicubic filtering
-Heightfield upsample2xBicubic(const Heightfield& src);
+Heightfield upsample2xBicubic(const Heightfield & src);
 
-// Add scaled source elevation into destination: dst += s * src
-void addScaled(Heightfield& dst, const Heightfield& src, float s);
+void addScaled(Heightfield & dst, const Heightfield & src, float s);
 
-// Compute element-wise difference of elevation: out = a - b
-void sub(const Heightfield& a, const Heightfield& b, Heightfield& out);
+void sub(const Heightfield & a, const Heightfield & b, Heightfield & out);
 
-// Deep copy of a heightfield
-Heightfield clone(const Heightfield& h);
+Heightfield clone(const Heightfield & h);
