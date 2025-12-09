@@ -177,7 +177,7 @@
 	<ItemDefinitionGroup Condition="'$(Platform)'=='x64'">
 		<PostBuildEvent>
 			<Command>
-            xcopy /Y /E "$(ProjectDir)dll\x64\*.dll" "$(TargetDir)"
+            if exist "$(ProjectDir)dll\x64\\" xcopy /Y /E "$(ProjectDir)dll\x64\*.dll" "$(TargetDir)"
         </Command>
 		</PostBuildEvent>
 		<ClCompile>
@@ -194,7 +194,7 @@
 	<ItemDefinitionGroup Condition="'$(Platform)'=='ARM64'">
 		<PostBuildEvent>
 			<Command>
-            xcopy /Y /E "$(ProjectDir)dll\ARM64\*.dll" "$(TargetDir)"
+            if exist "$(ProjectDir)dll\ARM64\\" xcopy /Y /E "$(ProjectDir)dll\ARM64\*.dll" "$(TargetDir)"
         </Command>
 		</PostBuildEvent>
 		<ClCompile>
@@ -211,7 +211,7 @@
 	<ItemDefinitionGroup Condition="'$(Platform)'=='ARM64EC'">
 		<PostBuildEvent>
 			<Command>
-            xcopy /Y /E "$(ProjectDir)dll\ARM64EC\*.dll" "$(TargetDir)"
+            if exist "$(ProjectDir)dll\ARM64EC\\" xcopy /Y /E "$(ProjectDir)dll\ARM64EC\*.dll" "$(TargetDir)"
         </Command>
 		</PostBuildEvent>
 		<ClCompile>
@@ -230,6 +230,11 @@
 		<ClCompile Include="src\ofApp.cpp" />
 		<ClCompile Include="src\Erosion.cpp" />
 		<ClCompile Include="src\Heightfield.cpp" />
+		<ClCompile Include="src\MeshBuild.cpp" />
+		<ClCompile Include="src\ErosionAPI.cpp" />
+		<ClCompile Include="src\MultiScale.cpp" />
+		<ClCompile Include="src\Hydrology.cpp" />
+		<ClCompile Include="src\Retarget.cpp" />
 		<ClCompile Include="..\..\..\addons\ofxGui\src\ofxBaseGui.cpp" />
 		<ClCompile Include="..\..\..\addons\ofxGui\src\ofxButton.cpp" />
 		<ClCompile Include="..\..\..\addons\ofxGui\src\ofxColorPicker.cpp" />
@@ -245,6 +250,11 @@
 		<ClInclude Include="src\ofApp.h" />
 		<ClInclude Include="src\Erosion.h" />
 		<ClInclude Include="src\Heightfield.h" />
+		<ClInclude Include="src\MeshBuild.h" />
+		<ClInclude Include="src\ErosionAPI.h" />
+		<ClInclude Include="src\MultiScale.h" />
+		<ClInclude Include="src\Hydrology.h" />
+		<ClInclude Include="src\Retarget.h" />
 		<ClInclude Include="..\..\..\addons\ofxGui\src\ofxBaseGui.h" />
 		<ClInclude Include="..\..\..\addons\ofxGui\src\ofxButton.h" />
 		<ClInclude Include="..\..\..\addons\ofxGui\src\ofxColorPicker.h" />

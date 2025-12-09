@@ -13,6 +13,21 @@
 		<ClCompile Include="src\Heightfield.cpp">
 			<Filter>src</Filter>
 		</ClCompile>
+		<ClCompile Include="src\MeshBuild.cpp">
+			<Filter>src</Filter>
+		</ClCompile>
+		<ClCompile Include="src\ErosionAPI.cpp">
+			<Filter>src</Filter>
+		</ClCompile>
+		<ClCompile Include="src\MultiScale.cpp">
+			<Filter>src</Filter>
+		</ClCompile>
+		<ClCompile Include="src\Hydrology.cpp">
+			<Filter>src</Filter>
+		</ClCompile>
+		<ClCompile Include="src\Retarget.cpp">
+			<Filter>src</Filter>
+		</ClCompile>
 		<ClCompile Include="..\..\..\addons\ofxGui\src\ofxBaseGui.cpp">
 			<Filter>addons\ofxGui\src</Filter>
 		</ClCompile>
@@ -66,6 +81,21 @@
 			<Filter>src</Filter>
 		</ClInclude>
 		<ClInclude Include="src\Heightfield.h">
+			<Filter>src</Filter>
+		</ClInclude>
+		<ClInclude Include="src\MeshBuild.h">
+			<Filter>src</Filter>
+		</ClInclude>
+		<ClInclude Include="src\ErosionAPI.h">
+			<Filter>src</Filter>
+		</ClInclude>
+		<ClInclude Include="src\MultiScale.h">
+			<Filter>src</Filter>
+		</ClInclude>
+		<ClInclude Include="src\Hydrology.h">
+			<Filter>src</Filter>
+		</ClInclude>
+		<ClInclude Include="src\Retarget.h">
 			<Filter>src</Filter>
 		</ClInclude>
 		<ClInclude Include="..\..\..\addons\ofxGui\src\ofxBaseGui.h">
