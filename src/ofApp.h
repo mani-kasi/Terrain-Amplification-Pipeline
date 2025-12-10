@@ -53,6 +53,7 @@ public:
 	bool overlayNeedsRecolor = true;
 
 	bool wireframeOn = false;
+	bool showHUD = true;
 	PipelineConfig cfg;
 
 	Heightfield H_base;

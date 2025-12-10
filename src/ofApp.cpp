@@ -139,39 +139,42 @@ void ofApp::draw() {
 	ofDisableLighting();
 	ofDisableDepthTest();
 
-	ofSetColor(255);
-	std::vector<std::string> hud;
-	hud.push_back("Controls:");
-	hud.push_back(std::string("E: Wireframe [") + (wireframeOn ? "ON" : "OFF") + "]");
-	hud.push_back("WASD: Move camera");
-	hud.push_back("R: Reset terrain (same seeds)");
-	hud.push_back("N: New seeds + reset terrain");
-	hud.push_back("F: Fluvial erosion step");
-	hud.push_back("T: Thermal erosion step");
-	hud.push_back("P: Deposition step");
-	hud.push_back("U: Upsample 2x (fixed extents)");
-	hud.push_back("M: Run multi-scale pipeline");
-	hud.push_back("B: View BASE");
-	hud.push_back("V: View MULTI-SCALE");
-	hud.push_back(std::string("H: Cycle hardness preset [") + hardnessPresetName() + "]");
-	hud.push_back("G: Cycle color mode (Height / Log-Drainage / Slope)");
-	hud.push_back("");
-	hud.push_back("Seed: " + std::to_string(static_cast<unsigned long long>(terrainSeed)));
-	hud.push_back("Hardness seed: " + std::to_string(static_cast<unsigned long long>(hardnessSeed)));
-	hud.push_back("Grid: " + std::to_string(terrain.width) + "x" + std::to_string(terrain.height));
-	hud.push_back("World: " + std::to_string(static_cast<int>(terrainWorld.worldWidth)) + " x " + std::to_string(static_cast<int>(terrainWorld.worldDepth)));
-	if (!cfg.scales.empty()) {
-		const auto & s0 = cfg.scales.front();
-		std::ostringstream oss;
-		oss << "Fluvial: dh -= Kf*A^p*S^q * hardness (Kf=" << s0.Kf
-			<< ", p=" << s0.p
-			<< ", q=" << s0.q << ")";
-		hud.push_back(oss.str());
-	}
-	hud.push_back(std::string("View: ") + ((viewMode == ViewMode::Base) ? "Base" : "Multi-Scale"));
-	hud.push_back("Mesh vertices: " + std::to_string(static_cast<int>(terrainMesh.getNumVertices())));
+	if (showHUD) {
+		ofSetColor(255);
+		std::vector<std::string> hud;
+		hud.push_back("Controls:");
+		hud.push_back("Z: Toggle HUD");
+		hud.push_back(std::string("E: Wireframe [") + (wireframeOn ? "ON" : "OFF") + "]");
+		hud.push_back("WASD: Move camera");
+		hud.push_back("R: Reset terrain (same seeds)");
+		hud.push_back("N: New seeds + reset terrain");
+		hud.push_back("F: Fluvial erosion step");
+		hud.push_back("T: Thermal erosion step");
+		hud.push_back("P: Deposition step");
+		hud.push_back("U: Upsample 2x (fixed extents)");
+		hud.push_back("M: Run multi-scale pipeline");
+		hud.push_back("B: View BASE");
+		hud.push_back("V: View MULTI-SCALE");
+		hud.push_back(std::string("H: Cycle hardness preset [") + hardnessPresetName() + "]");
+		hud.push_back("G: Cycle color mode (Height / Log-Drainage / Slope)");
+		hud.push_back("");
+		hud.push_back("Seed: " + std::to_string(static_cast<unsigned long long>(terrainSeed)));
+		hud.push_back("Hardness seed: " + std::to_string(static_cast<unsigned long long>(hardnessSeed)));
+		hud.push_back("Grid: " + std::to_string(terrain.width) + "x" + std::to_string(terrain.height));
+		hud.push_back("World: " + std::to_string(static_cast<int>(terrainWorld.worldWidth)) + " x " + std::to_string(static_cast<int>(terrainWorld.worldDepth)));
+		if (!cfg.scales.empty()) {
+			const auto & s0 = cfg.scales.front();
+			std::ostringstream oss;
+			oss << "Fluvial: dh -= Kf*A^p*S^q * hardness (Kf=" << s0.Kf
+				<< ", p=" << s0.p
+				<< ", q=" << s0.q << ")";
+			hud.push_back(oss.str());
+		}
+		hud.push_back(std::string("View: ") + ((viewMode == ViewMode::Base) ? "Base" : "Multi-Scale"));
+		hud.push_back("Mesh vertices: " + std::to_string(static_cast<int>(terrainMesh.getNumVertices())));
 
-	drawHudPanel(hud, 10.f, 20.f, 16.f, 6.f);
+		drawHudPanel(hud, 10.f, 20.f, 16.f, 6.f);
+	}
 }
 
 void ofApp::rebuildTerrainMesh(bool regenerateTerrain, bool reseed) {
@@ -287,6 +290,11 @@ void ofApp::recomputeNormals(ofVboMesh & mesh) {
 }
 
 void ofApp::keyPressed(int key) {
+	if (key == 'z' || key == 'Z') {
+		showHUD = !showHUD;
+		ofLogNotice() << "[hud] " << (showHUD ? "ON" : "OFF");
+		return;
+	}
 	if (key == 'e' || key == 'E') {
 		wireframeOn = !wireframeOn;
 		ofLogNotice() << "[view] wireframe = " << (wireframeOn ? "ON" : "OFF");
