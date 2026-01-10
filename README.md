@@ -5,6 +5,10 @@ Overview
 --------
 This project implements a simplified, CPU-only, multi-scale terrain amplification pipeline inspired by Schott et al. A base 256×256 heightfield is generated procedurally with a hardness mask, then upscaled through four scales to 2048×2048. At each scale the loop is: fluvial erosion → thermal erosion → light deposition → blend → (except final scale) bicubic upsample ×2. A peak-restoration step is applied after the finest scale to protect ridges, and a simplified breaching pass carves outlets instead of globally pit-filling basins.
 
+
+https://github.com/user-attachments/assets/7b2c08d7-da65-48d5-87f8-5ff38c438ee4
+
+
 Key Controls
 ------------
 - `E` — Toggle wireframe rendering on/off.
